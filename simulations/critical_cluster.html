@@ -12,7 +12,7 @@
 <body>
     <canvas id="percolation-canvas"></canvas>
 
-    <div class="controls">
+    <div class="controls" id="controls-box">
         <a href="../index.html" class="btn">back</a>
         <button class="btn" id="start-stop-btn" onclick="toggleSimulation()">start</button>
         <button class="btn" onclick="resetSimulation()">reset</button>
@@ -26,8 +26,10 @@
     <script>
         const canvas = document.getElementById('percolation-canvas');
         const ctx = canvas.getContext('2d');
+        const controlsBox = document.getElementById('controls-box');
 
         let gridWidth, gridHeight, center_x, center_y;
+        let controlsVisible = true;
 
         function resizeCanvas() {
             const dpr = window.devicePixelRatio || 1;
@@ -53,6 +55,17 @@
             // Disable image smoothing for crisp pixels
             ctx.imageSmoothingEnabled = false;
         }
+
+        canvas.addEventListener('click', function (e) {
+            e.preventDefault();
+            controlsVisible = !controlsVisible;
+
+            if (controlsVisible) {
+                controlsBox.style.display = 'block';
+            } else {
+                controlsBox.style.display = 'none';
+            }
+        });
 
         const p_c = 0.5;
 
