@@ -35,7 +35,7 @@ body {
 }
 
 .container {
-    max-width: 800px;
+    max-width: 720px;
     margin: 0 auto;
     padding: 2rem;
 }
@@ -60,7 +60,7 @@ h1 {
 
 .section {
     background: #fafafa;
-    margin: 2rem 0;
+    margin: 1rem 0;
     padding: 16px;
     border-radius: 8px;
 }
@@ -71,17 +71,47 @@ h1 {
 }
 
 .section h3 {
-    color: #272727;
+    color: #242424;
     margin-bottom: 1pt;
 }
-
 
 a {
     color: #272727;
     text-decoration: none;
-    margin: 0 1rem;
 }
 
 a:hover {
     color: #3c6076;
+    transform: translateX(2px);
+}
+
+footer {
+    margin-top: 1rem;
+    padding: 1rem 1rem;
+    color: #7f8c8d;
+    font-size: 0.9rem;
+    text-align: left;
+}
+
+.btn {
+    display: inline-block;
+    padding: 0.5rem 1.0rem;
+    background: #272727;
+    color: #fafafa;
+    text-decoration: none;
+    border-radius: 8px;
+    font-family: 'Fira Code', 'Courier New', monospace;
+    font-weight: 400;
+    transition: all 0.2s ease;
+    margin: 0.25rem;
+}
+
+.btn:hover {
+    background: #3c6076;
+    color: #fafafa;
+    transform: translateY(-1px);
+}
+
+.btn:active {
+    transform: translateY(0px);
 }

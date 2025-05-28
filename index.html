@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>nmk</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -11,30 +12,64 @@
     <div class="container">
         <header>
             <h1>niclas maximilian kupper</h1>
-            <p class="subtitle">applied mathematician</p>
+            <p class="subtitle" id="subtitle" onclick="changeSubtitle()">applied mathematician</p>
         </header>
 
         <div class="section">
-            <h2>about</h2>
-            <p>currently doing a phd at the university of bath. i study percolation on random connection models. i also
-                enjoy photography, music, philosophy and economics.</p>
+            <h3>about</h3>
+            <p>
+                currently completing phd at the university of bath.
+                i study percolation on random connection models.
+                i also enjoy photography, music, philosophy and economics.
+            </p><br>
+            <p>
+                nic [at] nmk.wtf
+            </p>
         </div>
 
         <div class="section">
-            <h2>links</h2>
+            <h3>links</h3>
             <a href="https://github.com/nic-kup">github</a><br>
             <a href="https://people.bath.ac.uk/nmk37/">uni website</a><br>
             <a href="https://nic-kup.github.io/nic_stock_scanner/">custom stock scanner</a><br>
             <a href="https://nicthinksaboutthings.substack.com/">substack</a><br>
+            <a href="https://nickup.bsky.social">bsky</a><br>
             <br>
             <h3>recreational activities</h3>
+            <a href="mypuzzles.html">puzzles</a><br>
             <a href="https://niclas.darkroom.com/">photography</a><br>
             <br>
             <h3>theses</h3>
-            <a href="https://nmk.wtf/pdfs/4manifolds.pdf">Bachelor Thesis</a><br>
-            <a href="https://nmk.wtf/pdfs/deep-hedging.pdf">Master Thesis</a><br>
+            <a href="pdfs/4manifolds.pdf">Bachelor Thesis</a><br>
+            <a href="pdfs/deep-hedging.pdf">Master Thesis</a><br>
         </div>
+        <footer>Last Updated: May 28th 2025</footer>
     </div>
 </body>
+<script>
+    const subtitles = [
+        "applied mathematician",
+        "percolation theorist",
+        "aspiring quant",
+        "board game nerd",
+        "puzzle enthusiast",
+        "probability wrangler",
+        "random graph explorer",
+        "sudoku architect"
+    ];
+
+    let currentIndex = 0;
+
+    function changeSubtitle() {
+        const subtitle = document.getElementById('subtitle');
+        let newIndex;
+        do {
+            newIndex = Math.floor(Math.random() * subtitles.length);
+        } while (newIndex === currentIndex && subtitles.length > 1);
+
+        currentIndex = newIndex;
+        subtitle.textContent = subtitles[currentIndex];
+    }
+</script>
 
 </html>
