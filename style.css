@@ -37,7 +37,7 @@ body {
 .container {
     max-width: 720px;
     margin: 0 auto;
-    padding: 2rem;
+    padding: clamp(0rem, 2vw, 2rem);
 }
 
 header {
@@ -78,11 +78,12 @@ h1 {
 a {
     color: #272727;
     text-decoration: none;
+    transition: all 0.3s ease;
 }
 
 a:hover {
-    color: #3c6076;
-    transform: translateX(2px);
+    color: #3b7294;
+    transform: translateY(-1px);
 }
 
 footer {
@@ -102,7 +103,7 @@ footer {
     border-radius: 8px;
     font-family: 'Fira Code', 'Courier New', monospace;
     font-weight: 400;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
     margin: 0.25rem;
 }
 
@@ -113,5 +114,5 @@ footer {
 }
 
 .btn:active {
-    transform: translateY(0px);
+    transform: translateY(1px);
 }
