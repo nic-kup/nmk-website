@@ -8,37 +8,51 @@
     <link rel="stylesheet" href="../style.css">
 </head>
 
+
 <body>
-    <div class="container">
+    <canvas id="percolation-canvas"></canvas>
+
+    <div class="controls">
         <a href="../index.html" class="btn">back</a>
-        <h2 style="color: #272727; margin-bottom: 10px;">Critical Percolation Cluster Growth</h2>
-
-        <canvas id="percolation-canvas" width="600" height="600"></canvas>
-
-        <div class="controls">
-            <button class="btn" onclick="startSimulation()">Start</button>
-            <button class="btn" onclick="pauseSimulation()">Pause</button>
-            <button class="btn" onclick="resetSimulation()">Reset</button>
-            <span style="margin-left: 20px;">p = <span id="prob-display">0.5</span></span>
-        </div>
-
+        <button class="btn" id="start-stop-btn" onclick="toggleSimulation()">start</button>
+        <button class="btn" onclick="resetSimulation()">reset</button>
         <div class="info">
-            Generation: <span id="generation">0</span> |
-            Cluster Size: <span id="cluster-size">0</span>
+            <div>p = <span id="prob-display">0.50</span></div>
+            <div>generation: <span id="generation">0</span></div>
+            <div>cluster size: <span id="cluster-size">0</span></div>
         </div>
     </div>
+
     <script>
         const canvas = document.getElementById('percolation-canvas');
+        const ctx = canvas.getContext('2d');
 
-        canvas.style.width = '600px';
-        canvas.style.height = '600px';
+        let gridWidth, gridHeight, center_x, center_y;
 
-        const ctx = setupHighDPICanvas(canvas);
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
 
-        const gridSize = 400;
-        const displaySize = 600;
-        const cellSize = displaySize / gridSize;
-        const center = Math.floor(gridSize / 2);
+            const logicalWidth = window.innerWidth;
+            const logicalHeight = window.innerHeight;
+
+            // Physical pixels
+            gridWidth = Math.floor(logicalWidth * dpr)
+            gridHeight = Math.floor(logicalHeight * dpr);
+
+            canvas.width = gridWidth;
+            canvas.height = gridHeight;
+
+            canvas.style.width = logicalWidth + 'px';
+            canvas.style.height = logicalHeight + 'px';
+
+            ctx.scale(dpr, dpr);
+
+            center_x = Math.floor(gridWidth / 2);
+            center_y = Math.floor(gridHeight / 2);
+
+            // Disable image smoothing for crisp pixels
+            ctx.imageSmoothingEnabled = false;
+        }
 
         const p_c = 0.5;
 
@@ -50,84 +64,39 @@
         let isRunning = false;
 
         function initGrid() {
-            grid = Array(gridSize).fill().map(() => Array(gridSize).fill(-1));
-            frontier = [{ x: center, y: center, gen: 0 }];
+            resizeCanvas();
+
+            grid = new Map();
+            frontier = [{ x: center_x, y: center_y, gen: 0 }];
             generation = 0;
             clusterSize = 0;
 
-            grid[center][center] = 0;
+            grid.set(`${center_x},${center_y}`, 0);
             clusterSize = 1;
 
+            ctx.fillStyle = '#eaeaea';
+            ctx.fillRect(0, 0, gridWidth, gridHeight);
+
+            drawCell(center_x, center_y, 0);
             updateDisplay();
         }
 
-        function generationToColor(gen, maxGen) {
-            if (gen === -1) return '#eaeaea';
+        function generationToColor(gen) {
+            if (gen === -1) return '#dfdfdf';
 
-            const normalizedGen = gen / Math.max(maxGen, 1);
-            const hue = (1 - normalizedGen) * 270;
-            const saturation = 85;
-            const lightness = 60;
+            const hue = (360. - (gen / 5.0) % 360.);
+            const saturation = Math.min(0. + gen / 40.0, 80.);
+            const lightness = Math.min(20. + gen / 40.0, 60.);
 
             return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
         }
 
-        function initPercolationCanvas() {
-            const canvas = document.getElementById('percolation-canvas');
-
-            // Set CSS size (what user sees)
-            canvas.style.width = '600px';
-            canvas.style.height = '600px';
-
-            // Setup high DPI
-            const ctx = setupHighDPICanvas(canvas);
-
-            // Your grid parameters (these stay the same logically)
-            const gridSize = 400;
-            const displaySize = 600; // CSS pixels
-            const cellSize = displaySize / gridSize; // Now in CSS pixels
-
-            return { ctx, cellSize, gridSize };
-        }
-
-        function setupHighDPICanvas(canvas) {
-            const ctx = canvas.getContext('2d');
-            const rect = canvas.getBoundingClientRect();
-
+        function drawCell(x, y, gen) {
+            const color = generationToColor(gen);
+            ctx.fillStyle = color;
             const dpr = window.devicePixelRatio || 1;
-
-            canvas.width = rect.width * dpr;
-            canvas.height = rect.height * dpr;
-
-            canvas.style.width = rect.width + 'px';
-            canvas.style.height = rect.height + 'px';
-
-            ctx.scale(dpr, dpr);
-            ctx.imageSmoothingEnabled = false;
-
-            return ctx;
+            ctx.fillRect(x / dpr, y / dpr, 1 / dpr, 1 / dpr); // Single pixel
         }
-
-        function drawGrid() {
-            ctx.clearRect(0, 0, 600, 600);
-            const maxGen = Math.max(...grid.flat().filter(x => x >= 0));
-
-            for (let i = 0; i < gridSize; i++) {
-                for (let j = 0; j < gridSize; j++) {
-                    const color = generationToColor(grid[i][j], maxGen);
-                    ctx.fillStyle = color;
-                    ctx.fillRect(i * cellSize, j * cellSize, cellSize, cellSize);
-
-                    if (grid[i][j] >= 0) {
-                        ctx.strokeStyle = 'rgba(0,0,0,0.1)';
-                        ctx.lineWidth = 0.5;
-                        ctx.strokeRect(i * cellSize, j * cellSize, cellSize, cellSize);
-                    }
-                }
-            }
-        }
-
-
 
         function getNeighbors(x, y) {
             const neighbors = [];
@@ -136,20 +105,29 @@
             for (let [dx, dy] of directions) {
                 const nx = x + dx;
                 const ny = y + dy;
-                if (nx >= 0 && nx < gridSize && ny >= 0 && ny < gridSize) {
+                if (nx >= 0 && nx < gridWidth && ny >= 0 && ny < gridHeight) {
                     neighbors.push({ x: nx, y: ny });
                 }
             }
             return neighbors;
         }
 
+        function isOccupied(x, y) {
+            return grid.has(`${x},${y}`);
+        }
+
+        function setCell(x, y, gen) {
+            grid.set(`${x},${y}`, gen);
+        }
+
         function simulationStep() {
             if (frontier.length === 0) {
-                pauseSimulation();
+                toggleSimulation();
                 return;
             }
 
             const newFrontier = [];
+            const cellsToUpdate = [];
 
             for (let cell of frontier) {
                 const neighbors = getNeighbors(cell.x, cell.y);
@@ -157,14 +135,19 @@
                 for (let neighbor of neighbors) {
                     const { x, y } = neighbor;
 
-                    if (grid[x][y] >= 0) continue;
+                    if (isOccupied(x, y)) continue;
 
                     if (Math.random() < p_c) {
-                        grid[x][y] = cell.gen + 1;
+                        setCell(x, y, cell.gen + 1);
                         newFrontier.push({ x, y, gen: cell.gen + 1 });
+                        cellsToUpdate.push({ x, y, gen: cell.gen + 1 });
                         clusterSize++;
                     }
                 }
+            }
+
+            for (let cell of cellsToUpdate) {
+                drawCell(cell.x, cell.y, cell.gen);
             }
 
             frontier = newFrontier;
@@ -172,45 +155,61 @@
                 generation++;
             }
 
-            drawGrid();
             updateDisplay();
         }
 
         function updateDisplay() {
             document.getElementById('generation').textContent = generation;
-            document.getElementById('cluster-size').textContent = clusterSize;
+            document.getElementById('cluster-size').textContent = clusterSize.toLocaleString();
             document.getElementById('prob-display').textContent = p_c.toFixed(3);
         }
 
         function animate() {
             if (isRunning) {
                 simulationStep();
-                animationId = setTimeout(animate, 10);
+                animationId = setTimeout(animate, 2);
             }
         }
 
-        window.startSimulation = function () {
-            if (!isRunning) {
+        window.toggleSimulation = function () {
+            const btn = document.getElementById('start-stop-btn');
+
+            if (isRunning) {
+                isRunning = false;
+                if (animationId) {
+                    clearTimeout(animationId);
+                }
+                btn.textContent = 'start';
+                btn.classList.remove('running');
+            } else {
+                if (frontier.length === 0) {
+                    resetSimulation()
+                }
                 isRunning = true;
                 animate();
-            }
-        };
-
-        window.pauseSimulation = function () {
-            isRunning = false;
-            if (animationId) {
-                clearTimeout(animationId);
+                btn.textContent = 'stop';
+                btn.classList.add('running');
             }
         };
 
         window.resetSimulation = function () {
-            pauseSimulation();
+            const btn = document.getElementById('start-stop-btn');
+            isRunning = false;
+            if (animationId) {
+                clearTimeout(animationId);
+            }
+            btn.textContent = 'start';
+            btn.classList.remove('running');
             initGrid();
-            drawGrid();
         };
 
         initGrid();
-        drawGrid();
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.hidden && isRunning) {
+                pauseSimulation();
+            }
+        });
     </script>
 </body>
 
