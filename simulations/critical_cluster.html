@@ -212,7 +212,7 @@
                 btn.textContent = 'start';
                 btn.classList.remove('running');
             } else {
-                if (frontier.length === 0) {
+                if (frontier.length === 0 || generation === 0) {
                     resetSimulation()
                 }
                 isRunning = true;
