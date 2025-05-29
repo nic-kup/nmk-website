@@ -63,23 +63,38 @@
         "probability wrangler",
         "random graph explorer",
         "sudoku architect",
+        "power of 2 choices",
         "warped topological fantasies",
-        "worthless trading algorithms",
+        "wonderful trading algorithms",
         "whimsical theorem factory",
         "winning through fourier"
     ];
 
+    let prev_draws = Array.from(subtitles, () => 0.0);
+
     let currentIndex = 0;
 
     function changeSubtitle() {
+        // implements power of 2 choices
         const subtitle = document.getElementById('subtitle');
-        let newIndex;
-        do {
-            newIndex = Math.floor(Math.random() * subtitles.length);
-        } while (newIndex === currentIndex && subtitles.length > 1);
+        let newIndexA, newIndexB;
 
-        currentIndex = newIndex;
-        subtitle.textContent = subtitles[currentIndex];
+        do {
+            newIndexA = Math.floor(Math.random() * subtitles.length);
+        } while (newIndexA === currentIndex);
+        do {
+            newIndexB = Math.floor(Math.random() * subtitles.length);
+        } while ((newIndexB === currentIndex || newIndexB === newIndexA));
+
+        if (prev_draws[newIndexA] < prev_draws[newIndexB]) {
+            currentIndex = newIndexA;
+            prev_draws[newIndexA] += 1;
+            subtitle.textContent = subtitles[currentIndex];
+        } else {
+            currentIndex = newIndexB;
+            prev_draws[newIndexB] += 1;
+            subtitle.textContent = subtitles[currentIndex];
+        }
     }
 </script>
 
