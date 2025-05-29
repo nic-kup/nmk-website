@@ -16,6 +16,10 @@
         <a href="../" class="btn">back</a>
         <button class="btn" id="start-stop-btn" onclick="toggleSimulation()">start</button>
         <button class="btn" onclick="resetSimulation()">reset</button>
+        <label class="switch">
+            <input type="checkbox" id="start-toggle">
+            <span class="slider round"></span>
+        </label>
         <div class="info">
             <div>p = <span id="prob-display">0.50</span></div>
             <div>generation: <span id="generation">0</span></div>
@@ -80,17 +84,30 @@
             resizeCanvas();
 
             grid = new Map();
-            frontier = [{ x: center_x, y: center_y, gen: 0 }];
+            frontier = [];
             generation = 0;
             clusterSize = 0;
-
-            grid.set(`${center_x},${center_y}`, 0);
-            clusterSize = 1;
 
             ctx.fillStyle = '#eaeaea';
             ctx.fillRect(0, 0, gridWidth, gridHeight);
 
-            drawCell(center_x, center_y, 0);
+            const startToggle = document.getElementById('start-toggle');
+
+            if (startToggle.checked) {
+                for (let y = 0; y < gridHeight; y++) {
+                    const x = 0;
+                    grid.set(`${x},${y}`, 0);
+                    frontier.push({ x: x, y: y, gen: 0 });
+                    drawCell(x, y, 0);
+                    clusterSize++;
+                }
+            } else {
+                grid.set(`${center_x},${center_y}`, 0);
+                frontier.push({ x: center_x, y: center_y, gen: 0 });
+                clusterSize = 1;
+                drawCell(center_x, center_y, 0);
+            }
+
             updateDisplay();
         }
 
