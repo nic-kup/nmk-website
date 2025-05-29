@@ -55,6 +55,7 @@ h1 {
 .subtitle {
     font-size: 1.2rem;
     color: #7f8c8d;
+    user-select: none;
     font-style: italic;
 }
 
