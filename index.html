@@ -63,11 +63,20 @@
         "probability wrangler",
         "random graph explorer",
         "sudoku architect",
-        "power of 2 choices",
         "warped topological fantasies",
-        "wonderful trading functions",
+        "wonderful trading forecasts",
         "whimsical theorem factory",
+        "wild truth functions",
+        "wandering through forests",
         "winning through fourier"
+    ];
+
+    const secret_subtitles = [
+        "hey, stop clicking on me!",
+        "okay enough already",
+        "i'm pretty sure you've seen them all now",
+        "there is no secret message",
+        "this isn't the stanley parable"
     ];
 
     let prev_draws = Array.from(subtitles, () => 0.0);
@@ -79,22 +88,32 @@
         const subtitle = document.getElementById('subtitle');
         let newIndexA, newIndexB;
 
-        do {
-            newIndexA = Math.floor(Math.random() * subtitles.length);
-        } while (newIndexA === currentIndex);
-        do {
-            newIndexB = Math.floor(Math.random() * subtitles.length);
-        } while ((newIndexB === currentIndex || newIndexB === newIndexA));
+        if (prev_draws.reduce((acc, curr) => acc + curr, 0) < 100) {
+            do {
+                newIndexA = Math.floor(Math.random() * subtitles.length);
+            } while (newIndexA === currentIndex);
+            do {
+                newIndexB = Math.floor(Math.random() * subtitles.length);
+            } while ((newIndexB === currentIndex || newIndexB === newIndexA));
 
-        if (prev_draws[newIndexA] < prev_draws[newIndexB]) {
-            currentIndex = newIndexA;
-            prev_draws[newIndexA] += 1;
-            subtitle.textContent = subtitles[currentIndex];
+            if (prev_draws[newIndexA] < prev_draws[newIndexB]) {
+                currentIndex = newIndexA;
+                prev_draws[newIndexA] += 1;
+                subtitle.textContent = subtitles[currentIndex];
+            } else {
+                currentIndex = newIndexB;
+                prev_draws[newIndexB] += 1;
+                subtitle.textContent = subtitles[currentIndex];
+            }
         } else {
-            currentIndex = newIndexB;
-            prev_draws[newIndexB] += 1;
-            subtitle.textContent = subtitles[currentIndex];
+            do {
+                newIndex = Math.floor(Math.random() * secret_subtitles.length);
+            } while (newIndex === currentIndex);
+
+            currentIndex = newIndex;
+            subtitle.textContent = secret_subtitles[currentIndex];
         }
+
     }
 </script>
 
