@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>elo</title>
+    <link rel="stylesheet" href="../style.css">
+</head>
+
+<body>
+    <canvas id="elo-canvas"></canvas>
+    <div class="controls" id="controls-box">
+        <a href="../" class="btn">back</a>
+        <button class="btn" id="start-stop-btn" onclick="toggleSimulation()">start</button>
+        <button class="btn" onclick="resetSimulation()">reset</button>
+        <br>
+        <div class="param-control">
+            <label>η_x:</label>
+            <input type="range" id="eta-x" min="0.1" max="5.0" step="0.1" value="1.0" onchange="updateParams()">
+            <span id="eta-x-val">1.0</span>
+        </div>
+
+        <div class="param-control">
+            <label>η_w:</label>
+            <input type="range" id="eta-w" min="0.01" max="1.0" step="0.01" value="0.2" onchange="updateParams()">
+            <span id="eta-w-val">0.2</span>
+        </div>
+
+        <div class="info">
+            <div>step: <span id="step">0</span></div>
+            <div>w_true: <span id="w-true">1.00</span></div>
+            <div>w_est: <span id="w-est">0.00</span></div>
+            <div>mse: <span id="mse">0.00</span></div>
+            <div>players: <span id="n-players">100</span></div>
+        </div>
+    </div>
+</body>
+
+<script>
+    const canvas = document.getElementById('elo-canvas');
+    const ctx = canvas.getContext('2d');
+    const controlsBox = document.getElementById('controls-box');
+
+    // Simulation parameters
+    const N_PLAYERS = 100;
+    const TEAM_SIZE = 5;
+    const BETA = 0.2;
+    let eta_x = 1.0;
+    let eta_w = 0.2;
+
+    // State
+    let w_true = 1.0;
+    let true_elo = [];
+    let x_est = [];
+    let w_est = 0.0;
+    let step = 0;
+    let isRunning = false;
+    let animationId = null;
+    let controlsVisible = true;
+
+    // History for plotting
+    let w_history = [];
+    let mse_history = [];
+    let max_history = 1000;
+
+    let canvasWidth, canvasHeight;
+
+    function resizeCanvas() {
+        const dpr = window.devicePixelRatio || 1;
+        canvasWidth = window.innerWidth;
+        canvasHeight = window.innerHeight;
+
+        canvas.width = canvasWidth * dpr;
+        canvas.height = canvasHeight * dpr;
+        canvas.style.width = canvasWidth + 'px';
+        canvas.style.height = canvasHeight + 'px';
+
+        ctx.scale(dpr, dpr);
+        ctx.imageSmoothingEnabled = false;
+    }
+
+    function initSimulation() {
+        resizeCanvas();
+
+        true_elo = Array.from({ length: N_PLAYERS }, () => gaussian(0, 2.0));
+        x_est = Array.from({ length: N_PLAYERS }, () => gaussian(0, 2.0));
+
+        w_est = 0.0;
+        step = 0;
+        w_history = [];
+        mse_history = [];
+
+        updateDisplay();
+        draw();
+    }
+
+    function gaussian(mean = 0.0, std = 1.0) {
+        let u = 0.0, v = 0.0;
+        while (u === 0) u = Math.random();
+        while (v === 0) v = Math.random();
+        return mean + std * Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    }
+
+    function softmaxTeam(ratings, w) {
+        const exps = ratings.map(r => Math.exp(w * r));
+        const sum = exps.reduce((a, b) => a + b, 0);
+        const sigma = exps.map(e => e / sum);
+        const T_team = ratings.reduce((sum, rating, i) => sum + rating * sigma[i], 0);
+        return { sigma, T_team };
+    }
+
+    function simulationStep() {
+        const ref_idx = Math.floor(Math.random() * N_PLAYERS);
+        const ref_skill = x_est[ref_idx];
+
+        const distances = x_est.map((skill, i) => ({
+            idx: i,
+            dist: Math.abs(skill - ref_skill)
+        }));
+        distances.sort((a, b) => a.dist - b.dist);
+
+        const candidates = distances.slice(0, Math.min(5 * TEAM_SIZE, N_PLAYERS)).map(d => d.idx);
+
+        for (let i = candidates.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+        }
+
+        const idx_x = candidates.slice(0, TEAM_SIZE);
+        const idx_y = candidates.slice(TEAM_SIZE, 2 * TEAM_SIZE);
+
+        const ratings_x_true = idx_x.map(i => true_elo[i]);
+        const ratings_y_true = idx_y.map(i => true_elo[i]);
+
+        const { T_team: T_x_true } = softmaxTeam(ratings_x_true, w_true);
+        const { T_team: T_y_true } = softmaxTeam(ratings_y_true, w_true);
+
+        const p_true = 1.0 / (1.0 + Math.exp(-BETA * (T_x_true - T_y_true)));
+        const r = Math.random() < p_true ? 1 : 0;
+
+        const ratings_x_est = idx_x.map(i => x_est[i]);
+        const ratings_y_est = idx_y.map(i => x_est[i]);
+
+        const { sigma: sigma_x_est, T_team: T_x_est } = softmaxTeam(ratings_x_est, w_est);
+        const { sigma: sigma_y_est, T_team: T_y_est } = softmaxTeam(ratings_y_est, w_est);
+
+        const p_est = 1 / (1 + Math.exp(-BETA * (T_x_est - T_y_est)));
+
+        const surprise = r - p_est;
+        const coef = BETA * surprise;
+
+        const delta_x = new Array(N_PLAYERS).fill(0);
+
+        // Team X updates
+        idx_x.forEach((player_idx, team_idx) => {
+            const incr = coef * sigma_x_est[team_idx] * (1.0 + w_est * (x_est[player_idx] - T_x_est));
+            delta_x[player_idx] += incr;
+        });
+
+        // Team Y updates
+        idx_y.forEach((player_idx, team_idx) => {
+            const incr = -coef * sigma_y_est[team_idx] * (1.0 + w_est * (x_est[player_idx] - T_y_est));
+            delta_x[player_idx] += incr;
+        });
+
+        // Remove average
+        const avg_change = delta_x.reduce((a, b) => a + b, 0) / (2.0 * TEAM_SIZE);
+        for (let i = 0; i < N_PLAYERS; i++) {
+            delta_x[i] -= avg_change;
+        }
+
+        for (let i = 0; i < N_PLAYERS; i++) {
+            x_est[i] += eta_x * delta_x[i];
+        }
+
+        // Update w
+        const var_x = ratings_x_est.reduce((sum, rating, i) => sum + sigma_x_est[i] * rating * rating, 0) - T_x_est * T_x_est;
+        const var_y = ratings_y_est.reduce((sum, rating, i) => sum + sigma_y_est[i] * rating * rating, 0) - T_y_est * T_y_est;
+        const w_update = coef * (var_x - var_y);
+        w_est += eta_w * w_update;
+
+        w_history.push(w_est);
+        const mean_true = true_elo.reduce((a, b) => a + b, 0) / N_PLAYERS;
+        const mean_est = x_est.reduce((a, b) => a + b, 0) / N_PLAYERS;
+        const mse = true_elo.reduce((sum, true_val, i) =>
+            sum + Math.pow((x_est[i] - mean_est) - (true_val - mean_true), 2), 0) / N_PLAYERS;
+        mse_history.push(mse);
+
+        if (w_history.length > max_history) {
+            w_history.shift();
+            mse_history.shift();
+        }
+
+        step++;
+        updateDisplay();
+    }
+
+    function draw() {
+        ctx.fillStyle = '#eaeaea';
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+        if (w_history.length < 2 || true_elo.length === 0 || x_est.length === 0) return;
+
+        const padding = 50;
+        const plot_width = (canvasWidth - 3 * padding) / 2;
+        const plot_height = (canvasHeight - 3 * padding) / 2;
+
+        // Top left: w convergence
+        drawPlot(w_history, padding, padding, plot_width, plot_height,
+            'w convergence', `w_true = ${w_true.toFixed(2)}`, '#357eab');
+
+        // Top right: MSE convergence
+        drawPlot(mse_history, 2 * padding + plot_width, padding, plot_width, plot_height,
+            'MSE convergence', '', '#d32f2f');
+
+        // Bottom: True vs Estimated ELO scatter plot
+        drawScatterPlot(padding, 2 * padding + plot_height, 2 * plot_width + padding, plot_height);
+    }
+
+    function drawPlot(data, x, y, width, height, title, subtitle, color) {
+        // Background
+        ctx.fillStyle = '#fafafa80';
+        ctx.fillRect(x, y, width, height);
+
+        // Border
+        ctx.strokeStyle = '#dadada';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, width, height);
+
+        if (data.length < 2) return;
+
+        // Data range
+        const minVal = Math.min(...data);
+        const maxVal = Math.max(...data);
+        const range = maxVal - minVal || 1;
+
+        // Draw data
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        data.forEach((val, i) => {
+            const plot_x = x + (i / (data.length - 1)) * width;
+            const plot_y = y + height - ((val - minVal) / range) * height;
+
+            if (i === 0) {
+                ctx.moveTo(plot_x, plot_y);
+            } else {
+                ctx.lineTo(plot_x, plot_y);
+            }
+        });
+        ctx.stroke();
+
+        // Labels
+        ctx.fillStyle = '#333';
+        ctx.font = '14px Fira Code';
+        ctx.fillText(title, x + 10, y + 20);
+
+        if (subtitle) {
+            ctx.font = '12px Fira Code';
+            ctx.fillText(subtitle, x + 10, y + 35);
+        }
+    }
+
+    function drawScatterPlot(x, y, width, height) {
+        // Safety check
+        if (!true_elo || !x_est || true_elo.length === 0 || x_est.length === 0) return;
+
+        // Background
+        ctx.fillStyle = '#fafafa80';
+        ctx.fillRect(x, y, width, height);
+
+        // Border
+        ctx.strokeStyle = '#dadada';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, width, height);
+
+        // Data range
+        const all_elo = [...true_elo, ...x_est];
+        let minElo = Math.min(...all_elo);
+        minElo -= Math.abs(minElo) * 0.05;
+        let maxElo = Math.max(...all_elo);
+        maxElo += Math.abs(maxElo) * 0.05;
+        const range = maxElo - minElo || 1;
+
+        // Draw diagonal reference line y = x
+        ctx.strokeStyle = '#999';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.moveTo(x, y + height);
+        ctx.lineTo(x + width, y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Draw scatter points
+        ctx.fillStyle = '#27272780';
+        for (let i = 0; i < Math.min(N_PLAYERS, true_elo.length, x_est.length); i++) {
+            const plot_x = x + ((x_est[i] - minElo) / range) * width;
+            const plot_y = y + height - ((true_elo[i] - minElo) / range) * height;
+
+            ctx.beginPath();
+            ctx.arc(plot_x, plot_y, 2, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        // Labels
+        ctx.fillStyle = '#333';
+        ctx.font = '14px Fira Code';
+        ctx.fillText('True vs Estimated ELO', x + 10, y + 20);
+
+        // Axis labels
+        ctx.font = '12px Fira Code';
+        ctx.fillText('Estimated ELO →', x + width - 120, y + height - 10);
+
+        ctx.save();
+        ctx.translate(x + 15, y + height - 50);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText('True ELO →', 0, 0);
+        ctx.restore();
+
+        // Calculate and display correlation
+        try {
+            const mean_true = true_elo.reduce((a, b) => a + b, 0) / true_elo.length;
+            const mean_est = x_est.reduce((a, b) => a + b, 0) / x_est.length;
+
+            let numerator = 0, sum_sq_true = 0, sum_sq_est = 0;
+            for (let i = 0; i < Math.min(true_elo.length, x_est.length); i++) {
+                const true_dev = true_elo[i] - mean_true;
+                const est_dev = x_est[i] - mean_est;
+                numerator += true_dev * est_dev;
+                sum_sq_true += true_dev * true_dev;
+                sum_sq_est += est_dev * est_dev;
+            }
+
+            const correlation = numerator / Math.sqrt(sum_sq_true * sum_sq_est);
+
+            if (!isNaN(correlation)) {
+                ctx.font = '12px Fira Code';
+                ctx.fillText(`r = ${correlation.toFixed(3)}`, x + width - 80, y + 20);
+            }
+        } catch (e) {
+            console.log('Correlation calculation error:', e);
+        }
+    }
+
+    function updateDisplay() {
+        document.getElementById('step').textContent = step.toLocaleString();
+        document.getElementById('w-true').textContent = w_true.toFixed(2);
+        document.getElementById('w-est').textContent = w_est.toFixed(3);
+        document.getElementById('n-players').textContent = N_PLAYERS;
+
+        if (mse_history.length > 0) {
+            document.getElementById('mse').textContent = mse_history[mse_history.length - 1].toFixed(3);
+        }
+    }
+
+    function updateParams() {
+        eta_x = parseFloat(document.getElementById('eta-x').value);
+        eta_w = parseFloat(document.getElementById('eta-w').value);
+        document.getElementById('eta-x-val').textContent = eta_x.toFixed(1);
+        document.getElementById('eta-w-val').textContent = eta_w.toFixed(2);
+    }
+
+    function animate() {
+        if (isRunning) {
+            for (let i = 0; i < 10; i++) { // Multiple steps per frame
+                simulationStep();
+            }
+            draw();
+            requestAnimationFrame(animate);
+        }
+    }
+
+    window.toggleSimulation = function () {
+        const btn = document.getElementById('start-stop-btn');
+
+        if (isRunning) {
+            isRunning = false;
+            btn.textContent = 'start';
+            btn.classList.remove('running');
+        } else {
+            isRunning = true;
+            animate();
+            btn.textContent = 'stop';
+            btn.classList.add('running');
+        }
+    };
+
+    window.resetSimulation = function () {
+        const btn = document.getElementById('start-stop-btn');
+        isRunning = false;
+        btn.textContent = 'start';
+        btn.classList.remove('running');
+        initSimulation();
+    };
+
+    // Event listeners
+    canvas.addEventListener('click', function (e) {
+        e.preventDefault();
+        controlsVisible = !controlsVisible;
+        controlsBox.style.display = controlsVisible ? 'block' : 'none';
+    });
+
+    window.addEventListener('resize', () => {
+        resizeCanvas();
+        draw();
+    });
+
+    document.addEventListener('visibilitychange', function () {
+        if (document.hidden && isRunning) {
+            toggleSimulation();
+        }
+    });
+
+    // Initialize
+    initSimulation();
+
+</script>
+
+</html>
