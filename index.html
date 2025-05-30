@@ -73,9 +73,9 @@
     ];
 
     const secret_subtitles = [
-        "hey, stop clicking on me!",
-        "okay enough already",
-        "i'm pretty sure you've seen them all now",
+        "stop clicking me",
+        "enough already",
+        "you have seen all messages",
         "there is no secret message",
         "this isn't the stanley parable"
     ];
@@ -89,7 +89,7 @@
         const subtitle = document.getElementById('subtitle');
         let newIndexA, newIndexB;
 
-        if (prev_draws.reduce((acc, curr) => acc + curr, 0) < 100) {
+        if (Math.min(...prev_draws) <= 1) {
             do {
                 newIndexA = Math.floor(Math.random() * subtitles.length);
             } while (newIndexA === currentIndex);
